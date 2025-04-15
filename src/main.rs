@@ -1,34 +1,14 @@
 use axum::{Router,routing::get,response::Html};
-use std::{net::SocketAddr, time::Duration};
-use tokio::signal;
+use std::net::SocketAddr;
 use deadpool_redis::{Config,Runtime};
 use std::env;
-use tokio::sync::oneshot;
+use tokio::signal;
+
 
 
 #[tokio::main]
 async fn main(){
-    let (shutdown_tx,shutdown_rx) = oneshot::channel();
-
-    tokio::spawn(async move {
-        signal::ctrl_c().await.unwrap();
-        let _ = shutdown_tx.send(());
-    });
-
-    tokio::spawn(async move {
-        let client = reqwest::Client::new();
-        loop {
-            tokio::time::sleep(Duration::from_secs(5)).await;
-            if client.get("http://localhost:8080/")
-            .send()
-            .await
-            .is_err()
-            {
-                println!("❌ Failed to connect to server");
-                break;
-            }
-        }
-    });
+    
     // redis
     let redis_pool= init_redis_pool().await;
     if let Err(e) = test_redis(&redis_pool).await {
@@ -46,12 +26,7 @@ async fn main(){
     println!("Server listening on {}",addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener,app)
-    .with_graceful_shutdown(async move{
-        let _ = shutdown_rx.await;
-        
-        perform_redis_cleanup(&redis_pool).await;
-        println!("⚠️ Receive shutdown signal...");
-    })
+    .with_graceful_shutdown(shutdown_signal(redis_pool))
     .await
     .unwrap();
 }
@@ -64,36 +39,36 @@ async fn health_check() -> impl axum::response::IntoResponse {
     axum::http::StatusCode::OK
 }
 
-// async fn shutdown_signal(pool: deadpool_redis::Pool){
-//     let ctrl_c = async{
-//         signal::ctrl_c()
-//         .await
-//         .expect("failed to install Ctrl+C handler");
-//     };
-//     #[cfg(unix)]
-//     let terminate = async{
-//         signal::unix::signal(signal::unix::SignalKind::terminate())
-//         .expect("failed to install signal handler")
-//         .recv()
-//         .await;
-//     };
+async fn shutdown_signal(pool: deadpool_redis::Pool){
+    let ctrl_c = async{
+        signal::ctrl_c()
+        .await
+        .expect("failed to install Ctrl+C handler");
+    };
+    #[cfg(unix)]
+    let terminate = async{
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+        .expect("failed to install signal handler")
+        .recv()
+        .await;
+    };
 
-//     #[cfg(not(unix))]
-//     let terminate = std::future::pending::<()>();
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
 
-//     tokio::select!{
-//         _=ctrl_c=>{
-//             println!("cmd signal received, shutting down...");
-//         }
-//         _=terminate=>{
-//             println!("unix signal received, shutting down...");
-//         }
-//     }
-//     println!("Shutting down gracefully...");
-//     perform_redis_cleanup(&pool).await;
-//     println!("Server shutdown complete");
+    tokio::select!{
+        _=ctrl_c=>{
+            println!("cmd signal received, shutting down...");
+        }
+        _=terminate=>{
+            println!("unix signal received, shutting down...");
+        }
+    }
+    println!("Shutting down gracefully...");
+    perform_redis_cleanup(&pool).await;
+    println!("Server shutdown complete");
 
-// }
+}
 
 async fn init_redis_pool() -> deadpool_redis::Pool{
     let redis_url = env::var("REDIS_URL")
