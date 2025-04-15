@@ -1,5 +1,6 @@
 # 构建阶段
-FROM rust:1.70-slim as builder
+# 使用更新的 Rust 镜像
+FROM rust:1.75-slim as builder  # 或更高版本
 
 # 安装编译依赖
 RUN apt-get update && \
