@@ -13,3 +13,4 @@ axum = "0.7"
 tokio = { version = "1.0", features = ["full"] }
 deadpool-redis = "0.11"  # 异步 Redis 连接池
 redis = { version = "0.22", features = ["tokio-comp"] }  # 异步 Redis 驱动
+reqwest = { version = "0.11", features = ["json"] }
