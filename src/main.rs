@@ -21,7 +21,7 @@ async fn main(){
     .route("/",get(handler))
     .route("/health",get(health_check));
 
-    let addr = SocketAddr::from(([127,0,0,1],3000));
+    let addr = SocketAddr::from(([127,0,0,1],8080));
     println!("Server listening on {}",addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener,app)
