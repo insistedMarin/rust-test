@@ -1,8 +1,5 @@
-# 构建阶段
-# 使用更新的 Rust 镜像
-FROM rust:1.75-slim as builder  # 或更高版本
+FROM rust:1.86-bookworm AS builder
 
-# 安装编译依赖
 RUN apt-get update && \
     apt-get install -y pkg-config libssl-dev && \
     rm -rf /var/lib/apt/lists/*
@@ -10,16 +7,13 @@ RUN apt-get update && \
 WORKDIR /app
 COPY . .
 
-# 构建（使用 --bin 指定名称）
 RUN cargo build --release --bin axum-redis-server
 
-# 运行时阶段
 FROM debian:12-slim
 RUN apt-get update && \
     apt-get install -y libssl3 ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# 从构建阶段拷贝二进制
 COPY --from=builder /app/target/release/axum-redis-server /usr/local/bin/
 
 CMD ["axum-redis-server"]
